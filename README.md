@@ -1,47 +1,83 @@
 # DESI DR1 Type 1 AGN catalogue (Yao et al. 2026)
 
-This catalogue contains **114,754 Type 1 AGNs**, one row per DESI
-TARGETID, and **167 columns** expanded from the paper's Table 2.
-The release preserves the measurements used by the paper. No spectra were
-refitted, and no additional signal-to-noise or parameter-quality cuts were applied.
+This is the machine-readable catalogue accompanying **Yao et al. (2026),
+*The Population of Type 1 Active Galactic Nuclei in Dark Energy Spectroscopic
+Instrument. I. Profile-dependent Measurements of the Low-redshift Sample***.
+It contains **114,754 Type 1 active galactic nuclei (AGNs) at z ≤ 0.9** selected
+from the first data release of the Dark Energy Spectroscopic Instrument
+(DESI DR1). The catalogue provides DESI target identifiers and redshifts,
+continuum signal-to-noise ratios and 4000 Å break indices, host-subtracted
+5100 Å luminosities, emission-line measurements from Lorentzian and
+double-Gaussian broad-line fits, Fe II strengths, narrow-line Seyfert 1
+(NLS1) classification flags, and estimates of black-hole mass and
+dimensionless accretion rate. Hα-region measurements and BPT emission-line
+ratios are included for **15,390 sources at z < 0.35**. The main table has
+one row per source and **167 columns**, following Table 2 of the paper.
 
-## Files and reading
+## Reading the catalogue
 
-- `desi_dr1_type1_catalog.fits`: uncompressed FITS (149.4 MiB).
-- `desi_dr1_type1_catalog.fits.gz`: losslessly compressed copy (66.6 MiB), convenient for GitHub distribution.
-- `SHA256SUMS.txt`: checksums for both FITS files and this README.
-- `validation.json`: coverage, round-trip, and numerical consistency checks.
+The data are provided in **`desidr1_type1cat.fits`**. All measurements,
+flux conversion factors, and column descriptions are contained in this
+single FITS file.
 
-The compressed and uncompressed files contain identical FITS bytes. Only one
-copy needs to be distributed. Astropy reads either directly:
+Install Astropy if needed:
+
+```bash
+python3 -m pip install astropy
+```
+
+Run the following Python example in the directory containing the FITS file,
+or replace the filename with its full path:
 
 ```python
+from astropy.io import fits
 from astropy.table import Table
-catalog = Table.read("desi_dr1_type1_catalog.fits.gz", hdu="TYPE1_CATALOG")
-scales = Table.read("desi_dr1_type1_catalog.fits.gz", hdu="FLUX_SCALE")
+
+with fits.open("desidr1_type1cat.fits", memmap=False) as hdul:
+    catalog = Table.read(hdul, hdu="TYPE1_CATALOG")
+    scales = Table.read(hdul, hdu="FLUX_SCALE")
+    columns = Table.read(hdul, hdu="COLUMN_INFO")
+
+print(f"{len(catalog):,} sources, {len(catalog.colnames)} columns")
+print(catalog["TARGETID", "Z", "L5100"][:5])
+
+# Select objects classified as NLS1s under both broad-line models.
 nls1_both = catalog[catalog["NLS1_FLAG_BOTH"] == 1]
+print(f"{len(nls1_both):,} NLS1s in both models")
+
+# Select a source using its exact integer TARGETID.
+target = catalog[catalog["TARGETID"] == 39627884268098267]
+
+# Inspect a column definition.
+print(columns[columns["COLUMN"] == "MBH_fitg"])
+
+# Convert the Lorentzian [O III] 5007 line flux to erg s^-1 cm^-2.
+flux_oiii5007 = catalog["Flux_OIII5007_fitl"] * scales["UNIT_fitl"] * 1e-17
 ```
+
+## FITS structure
 
 | Extension | Content |
 |---|---|
-| PRIMARY | Release conventions and version information. |
-| TYPE1_CATALOG | Table 2, with 167 columns in the displayed table order. |
-| FLUX_SCALE | TARGETID, UNIT_fitl, UNIT_Halpha_fitl, UNIT_fitg, UNIT_Halpha_fitg, UNIT_DEFAULT_fitl. |
-| COLUMN_INFO | Exact expanded column names, units, FITS formats, descriptions, source mappings, Table 2 row numbers, and missing counts. |
-| PROVENANCE | Input file names, roles, row counts, and SHA-256 hashes. |
+| `PRIMARY` | General catalogue metadata. |
+| `TYPE1_CATALOG` | The main catalogue: 114,754 sources and 167 columns corresponding to Table 2. |
+| `FLUX_SCALE` | Per-source factors for converting fitted fluxes to physical units. |
+| `COLUMN_INFO` | Column names, units, data types, descriptions, and numbers of missing measurements. |
+| `PROVENANCE` | Records identifying the data products used to assemble the catalogue. |
 
-Both per-source extensions have identical TARGETID order, sorted numerically.
+`TYPE1_CATALOG` and `FLUX_SCALE` have identical TARGETID order, sorted numerically.
 TARGETID is a signed 64-bit integer (FITS `K`), never a floating-point number.
-Measurements are 64-bit floats (`D`), without rounding. Missing measurements
-are IEEE NaN. Real zeros, including zero errors, are preserved.
+Measurements are 64-bit floats (`D`). Missing measurements are stored as NaN
+and may appear as masked entries (`--`) when read with Astropy. Zero values,
+including zero uncertainties, are retained as recorded.
 
 ## Profiles and classification
 
-`fitl` denotes Lorentzian fits. `fitg` denotes **two Gaussian components**,
-mapped from the internal `fitdg` products. The old single-Gaussian `fitg`
-input files are not used. `BROAD_PROFILE` stores `lorentzian` or `dgaussian`.
-For the double-Gaussian fits, the unsuffixed broad-line flux is G1+G2 and
-the broad-line FWHM describes the summed profile, not either component.
+The column suffix `fitl` denotes a Lorentzian broad-line model, and `fitg`
+denotes a broad-line model consisting of **two Gaussian components**.
+`BROAD_PROFILE_fitl` and `BROAD_PROFILE_fitg` store `lorentzian` and
+`dgaussian`, respectively. For the double-Gaussian fits, the total broad-line
+flux is G1+G2, and the broad-line FWHM describes their summed profile.
 
 For each profile, `NLS1_FLAG=1` requires both
 
@@ -53,9 +89,7 @@ FWHM_Broad_Hbeta < 2200 km/s
 Widths must be finite and positive, and errors finite and nonnegative.
 Flag `0` means the criterion is not met; `-1` means the inputs are invalid.
 `NLS1_FLAG_BOTH=1` requires both profile flags to be 1, `-1` means either
-profile is unclassifiable, and 0 covers the remaining cases. These flags
-follow the criterion in the paper's current plotting code, not the older
-NLS1/BOUNDARY/BLS1 labels in the internal sample table.
+profile is unclassifiable, and 0 covers the remaining cases.
 
 | Selection | Count |
 |---|---:|
@@ -64,13 +98,13 @@ NLS1/BOUNDARY/BLS1 labels in the internal sample table.
 | NLS1, two Gaussians | 13,359 |
 | NLS1 in both | 11,012 |
 | Invalid two-Gaussian classification inputs | 3 |
-| Halpha/BPT input coverage (z < 0.35) | 15,390 |
+| Hα/BPT measurement coverage (z < 0.35) | 15,390 |
 
-Halpha/BPT measurements are NaN outside the 15,390-source z<0.35 input subset.
+Hα/BPT measurements are NaN outside the 15,390-source z < 0.35 subset.
 Within that subset, individual derived ratios may also be unavailable.
 The BPT ratios are linear, and the [S II] numerator is the sum of 6716 and 6731.
-The non-BPT [O III]/narrow-Hbeta columns retain the source parameter-table
-convention (a finite zero numerator is allowed); the BPT products require
+The non-BPT [O III]/narrow-Hβ columns allow a finite zero numerator;
+the BPT ratios require
 positive numerator and denominator and Halpha subset membership.
 
 ## Flux scales and units
@@ -91,10 +125,9 @@ Because the scale varies by source, flux columns have no fixed physical
 `TUNIT`; their units and conversion are documented here and in COLUMN_INFO.
 Luminosity, mass, FWHM and EW columns have physical FITS `TUNIT` values.
 
-The original Lorentzian parameter pipeline interprets absent `UNIT` as 1.
-This release preserves that convention for 112,853 rows,
-identified by `FLUX_SCALE.UNIT_DEFAULT_fitl=1`. These factors reproduce the
-stored line luminosities; this export does not independently recalibrate fluxes.
+For 112,853 Lorentzian fits, the flux scale is set to 1 following the
+convention used to calculate the published line luminosities. These entries
+are identified by `FLUX_SCALE.UNIT_DEFAULT_fitl=1`.
 
 `L5100` and its errors come from the host-subtracted continuum product.
 `D4000` and `Dn4000` are the original spectrum/product indices, not the
@@ -102,9 +135,10 @@ separately measured host-only indices. EWs are in rest-frame Angstrom.
 
 ## Black-hole mass and accretion rate
 
-`MBH_<prof>` and `mdot_<prof>` are the existing `MBH_DW19` and `mdot_DW19`
-columns, in linear units. Both profiles use the common host-subtracted
-`L5100` and their own RFe:
+`MBH_<prof>` is the black-hole mass in solar masses, and `mdot_<prof>` is
+the dimensionless mass-accretion-rate estimate. Both are stored as linear
+values. They use the Fe II-dependent radius-luminosity relation adopted in
+the paper, with the common host-subtracted `L5100` and each model's RFe:
 
 ```
 log10(R_Hbeta / light-day) = 1.65 + 0.45*log10(L5100/1e44) - 0.35*RFe
@@ -114,38 +148,17 @@ mdot = 20.1 * ((L5100/1e44)/0.75)^1.5 * (MBH/1e7)^(-2)
 
 `mdot` is a dimensionless mass-accretion-rate proxy, not Lbol/Ledd.
 
-**Existing width/mass inconsistency:** the source two-Gaussian Hbeta FWHM
-was evaluated on a 501-point velocity grid. The source mass pipeline
-re-evaluated the summed profile on a 1,201-point grid before calculating
-MBH and mdot. This export preserves both existing products. Consequently,
-substituting the released `FWHM_Broad_Hbeta_fitg` into the above mass formula
-does not always reproduce the released `MBH_fitg`. Among the
-114,707 finite comparisons,
-the median absolute difference is
-0.003526 dex,
-1,157 exceed 0.1 dex,
-and the maximum is 3.9601 dex.
-The exported width and mass are not a numerically consistent pair for these
-objects. This is an unresolved property of the paper inputs, not a FITS
-conversion error. Zero errors and parameters at fitting bounds are also
-preserved and should not be interpreted as exact measurements.
+**Numerical convention for the double-Gaussian model:** the tabulated
+`FWHM_Broad_Hbeta_fitg` uses a 501-point velocity grid, whereas `MBH_fitg`
+and `mdot_fitg` were calculated using a width re-evaluated on a 1,201-point
+grid. Inserting the tabulated width into the mass formula therefore does
+not always reproduce `MBH_fitg`: the median absolute difference is
+0.003526 dex, 1,157 sources differ by more than 0.1 dex, and the largest
+difference is 3.9601 dex. The catalogue retains the measurements used in the
+paper. Zero uncertainties and parameters at fitting bounds should not be
+interpreted as exact measurements.
 
-## Reproduction and verification
-
-From the project root, run:
-
-```bash
-python3 collectpars/build_type1_catalog.py --data-dir collectpars --output-dir catalog_release
-```
-
-Dependencies: Python 3, NumPy, pandas, and Astropy. Input CSV files are
-identified by hashes in PROVENANCE; rebuilding requires those files.
-The builder checks unique exact integer identifiers, complete joins,
-profile identity, Halpha coverage, every exported cell on FITS read-back,
-FITS checksums, Gaussian flux sums, RFe, [O III] luminosities, BPT ratios,
-and byte-identical gzip decompression. See `validation.json` for results.
-
-## Expanded Table 2 columns
+## Column descriptions
 
 For each table row, placeholders are expanded in the order shown in the
 paper, with `fitl` before `fitg`. `COLUMN_INFO` contains the source mappings.
@@ -320,3 +333,7 @@ paper, with `fitl` before `fitg`. `COLUMN_INFO` contains the source mappings.
 | 165 | `SII6716_6731_to_Narrow_Halpha_BPT_fitg` | -- | Linear BPT ratio SII6716_6731_to_Narrow_Halpha for the matched z<0.35 sample. |
 | 166 | `OI6300_to_Narrow_Halpha_BPT_fitl` | -- | Linear BPT ratio OI6300_to_Narrow_Halpha for the matched z<0.35 sample. |
 | 167 | `OI6300_to_Narrow_Halpha_BPT_fitg` | -- | Linear BPT ratio OI6300_to_Narrow_Halpha for the matched z<0.35 sample. |
+
+## Citation
+
+If you use this catalog, please cite the paper (arXiv: [XXXX.XXXXX](https://arxiv.org/abs/XXXX.XXXXX)).
