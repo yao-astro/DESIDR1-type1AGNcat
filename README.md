@@ -1,7 +1,10 @@
 # DESI DR1 Type 1 AGN catalogue (Yao et al. 2026)
 
-This is the machine-readable catalogue accompanying **Yao et al. (2026)**,
-[The Population of Type 1 Active Galactic Nuclei in Dark Energy Spectroscopic Instrument. I. \\ Profile-dependent Measurements of the Low-redshift Sample](https://arxiv.org/abs/2610.13218).
+This is the machine-readable catalogue accompanying
+
+**Yao et al. (2026)**,
+[The Population of Type 1 Active Galactic Nuclei in Dark Energy Spectroscopic Instrument. I. Profile-dependent Measurements of the Low-redshift Sample](https://arxiv.org/abs/2610.13218).
+
 It contains **114,754 Type 1 active galactic nuclei (AGNs) at z ≤ 0.9** selected
 from the first data release of the Dark Energy Spectroscopic Instrument
 (DESI DR1). The catalogue provides DESI target identifiers and redshifts,
